@@ -1,4 +1,4 @@
-# consensus_ws
+# fast-lio2_map consensus_ws
 
 cd ~/consensus_ws
 
