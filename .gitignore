@@ -1,0 +1,33 @@
+# ROS 2 / colcon
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# ROS bags and databases
+*.bag
+*.db3
+rosbag2_*/
+
+# Point clouds and generated maps
+*.pcd
+*.ply
+*.las
+*.laz
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.swp
+*.bak
+*~

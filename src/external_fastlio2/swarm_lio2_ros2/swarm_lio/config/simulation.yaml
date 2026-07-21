@@ -1,0 +1,85 @@
+# Swarm-LIO2 configuration for Livox MID-360 (ROS2)
+# Usage: ros2 launch swarm_lio swarm_lio2.launch.py config_file:=mid360.yaml
+
+/**:
+  ros__parameters:
+    # ---- common ----
+    "common/lid_topic": "/quad1/mid360/points"
+    "common/imu_topic": "/quad1/mid360/imu"
+    "common/time_offset_lidar_imu": 0.0
+    "common/drone_id": 1
+
+    # ---- preprocess ----
+    "preprocess/lidar_type": 6            # enum: 1=AVIA/MID360 CustomMsg, 2=VELO, 3=OUSTER, 4=L515, 5=PANDAR, 6=SIM PointCloud2
+    "preprocess/feature_extract_en": false
+    "preprocess/scan_line": 4
+    "preprocess/blind": 0.2
+    "filter_size_corner": 0.5
+
+    # ---- mapping (FAST-LIO core) ----
+    "mapping/filter_size_surf": 0.2
+    "mapping/filter_size_map": 0.3
+    "mapping/cube_side_length": 2000.0
+    "mapping/det_range": 100.0
+    "mapping/imu_en": true
+    "mapping/acc_cov": 0.1
+    "mapping/gyr_cov": 0.1
+    "mapping/grav_cov": 0.001
+    "mapping/b_acc_cov": 0.0001
+    "mapping/b_gyr_cov": 0.0001
+    "mapping/LI_extrinsic_T": [ 0.0, 0.0, 0.0 ]
+    "mapping/LI_extrinsic_R": [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ]
+
+    # ---- multi-uav swarm ----
+    "multiuav/actual_uav_num": 3
+    "multiuav/cluster_extraction_in_predict_region": true
+    "multiuav/inten_threshold": 240
+    "multiuav/min_high_inten_cluster_size": 4
+    "multiuav/min_cluster_size": 7
+    "multiuav/predict_region_radius": 0.5
+    "multiuav/temp_predict_region_radius": 0.5
+    # In the leader-only figure-eight bag the two follower viewpoints yield
+    # about 43 and 27.8 trajectory-excitation units. Keep this simulation-only
+    # gate below both; the real-flight mid360.yaml threshold is unchanged.
+    "multiuav/traj_matching_start_thresh": 25.0
+    # RGL + simulated PointCloud2 trajectories are sparser than real Mid360
+    # returns; keep the real-flight mid360.yaml gate at 0.2 m.
+    "multiuav/ave_match_error_thresh": 0.5
+    "multiuav/pos_num_in_traj": 300
+    "multiuav/reset_tracker_thresh": 5.0
+    "multiuav/valid_cluster_size_thresh": 0.5
+    "multiuav/valid_cluster_dist_thresh": 0.2
+    "multiuav/mutual_observe_noise": 0.001
+    "multiuav/frame_num_in_sliding_window": 3
+    "multiuav/degeneration_thresh": 10
+
+    # ---- calibration ----
+    "calibration/cut_frame_en": false
+    "calibration/cut_frame_num": 1
+    "calibration/accumulate_frame_en": false
+    "calibration/original_frequency": 10        # RGL Mid360 output Hz
+    "calibration/gravity_align_enable": true
+    "calibration/gravity_align_time": 10.0       # seconds
+    "calibration/PX4_R_I": [ 0.0, 0.0, 0.0 ]    # degree
+    "calibration/PX4_p_I": [ 0.0, 0.0, 0.0 ]    # meter
+    "calibration/level_horizon": [ 0.0, 0.0, 0.0 ]  # degree
+
+    # ---- imu_propagate ----
+    "imu_propagate/enable": true
+    "imu_propagate/topic": "lidar_slam/imu_propagate"
+    "imu_propagate/filter_acc_en": false
+
+    # ---- publish ----
+    "publish/path_en": true
+    "publish/scan_publish_en": true
+    "publish/dense_publish_en": true
+    "publish/scan_bodyframe_pub_en": false
+    "publish/mavros_pose_en": false              # publish /mavros/vision_pose/pose for PX4 MAVROS compat
+    "runtime_pos_log_enable": false
+    "log_dir": "/tmp/swarm_lio"
+    "sub_gt_pose_topic": ""
+
+    # ---- pcd_save ----
+    "pcd_save/pcd_save_en": false
+    "pcd_save/pcd_resolution": 0.1
+    "pcd_save/interval": -1

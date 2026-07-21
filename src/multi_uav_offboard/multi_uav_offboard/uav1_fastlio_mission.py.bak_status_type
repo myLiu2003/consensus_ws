@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+import math
+import time
+from typing import Dict, Optional, Tuple
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from px4_msgs.msg import (
+    OffboardControlMode,
+    TrajectorySetpoint,
+    VehicleCommand,
+    VehicleOdometry,
+    VehicleStatus,
+)
+
+Position = Tuple[float, float, float]
+
+
+def lerp(a: Position, b: Position, ratio: float) -> Position:
+    ratio = max(0.0, min(1.0, ratio))
+    return tuple(a[i] + ratio * (b[i] - a[i]) for i in range(3))
+
+
+class Uav1FastlioMission(Node):
+    """Three-UAV takeoff; UAV1 flies a square; UAV2/UAV3 hold position."""
+
+    def __init__(self) -> None:
+        super().__init__("uav1_fastlio_mission")
+        self.ids = (1, 2, 3)
+
+        self.pub_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        self.sub_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=20,
+        )
+
+        self.positions: Dict[int, Optional[Position]] = {i: None for i in self.ids}
+        self.status: Dict[int, Optional[VehicleStatus]] = {i: None for i in self.ids}
+        self.origin: Dict[int, Position] = {}
+
+        self.offboard_pub = {}
+        self.setpoint_pub = {}
+        self.command_pub = {}
+
+        for idx in self.ids:
+            prefix = f"/px4_{idx}/fmu"
+            self.offboard_pub[idx] = self.create_publisher(
+                OffboardControlMode,
+                f"{prefix}/in/offboard_control_mode",
+                self.pub_qos,
+            )
+            self.setpoint_pub[idx] = self.create_publisher(
+                TrajectorySetpoint,
+                f"{prefix}/in/trajectory_setpoint",
+                self.pub_qos,
+            )
+            self.command_pub[idx] = self.create_publisher(
+                VehicleCommand,
+                f"{prefix}/in/vehicle_command",
+                self.pub_qos,
+            )
+            self.create_subscription(
+                VehicleOdometry,
+                f"{prefix}/out/vehicle_odometry",
+                lambda msg, i=idx: self.odom_cb(i, msg),
+                self.sub_qos,
+            )
+            self.create_subscription(
+                VehicleStatus,
+                f"{prefix}/out/vehicle_status",
+                lambda msg, i=idx: self.status_cb(i, msg),
+                self.sub_qos,
+            )
+
+        self.phase = "WAIT_ODOMETRY"
+        self.phase_start = time.monotonic()
+        self.last_command_time = 0.0
+        self.last_status_log = 0.0
+
+        self.takeoff_z = {1: -3.0, 2: -4.0, 3: -5.0}
+        self.prestream_sec = 3.0
+        self.arm_timeout_sec = 15.0
+        self.takeoff_sec = 10.0
+        self.settle_sec = 5.0
+        self.leg_sec = 8.0
+        self.square_side = 4.0
+
+        self.timer = self.create_timer(0.05, self.timer_cb)
+        self.get_logger().info(
+            "Mission started: three-UAV takeoff, UAV1 4 m square motion."
+        )
+
+    def odom_cb(self, idx: int, msg: VehicleOdometry) -> None:
+        if len(msg.position) < 3:
+            return
+        p = tuple(float(v) for v in msg.position[:3])
+        if all(math.isfinite(v) for v in p):
+            self.positions[idx] = p
+
+    def status_cb(self, idx: int, msg: VehicleStatus) -> None:
+        self.status[idx] = msg
+
+    def timestamp_us(self) -> int:
+        return int(self.get_clock().now().nanoseconds // 1000)
+
+    def publish_mode(self, idx: int) -> None:
+        msg = OffboardControlMode()
+        msg.timestamp = self.timestamp_us()
+        msg.position = True
+        msg.velocity = False
+        msg.acceleration = False
+        msg.attitude = False
+        msg.body_rate = False
+        if hasattr(msg, "thrust_and_torque"):
+            msg.thrust_and_torque = False
+        if hasattr(msg, "direct_actuator"):
+            msg.direct_actuator = False
+        self.offboard_pub[idx].publish(msg)
+
+    def publish_setpoint(self, idx: int, p: Position) -> None:
+        msg = TrajectorySetpoint()
+        msg.timestamp = self.timestamp_us()
+        msg.position = [float(p[0]), float(p[1]), float(p[2])]
+        msg.velocity = [float("nan")] * 3
+        msg.acceleration = [float("nan")] * 3
+        msg.jerk = [float("nan")] * 3
+        msg.yaw = 0.0
+        msg.yawspeed = float("nan")
+        self.setpoint_pub[idx].publish(msg)
+
+    def send_command(
+        self,
+        idx: int,
+        command: int,
+        param1: float = 0.0,
+        param2: float = 0.0,
+    ) -> None:
+        msg = VehicleCommand()
+        msg.timestamp = self.timestamp_us()
+        msg.param1 = float(param1)
+        msg.param2 = float(param2)
+        msg.command = int(command)
+        msg.target_system = 0
+        msg.target_component = 0
+        msg.source_system = 1
+        msg.source_component = 1
+        msg.from_external = True
+        self.command_pub[idx].publish(msg)
+
+    def request_offboard_and_arm(self) -> None:
+        now = time.monotonic()
+        if now - self.last_command_time < 1.0:
+            return
+        self.last_command_time = now
+        for idx in self.ids:
+            self.send_command(
+                idx,
+                VehicleCommand.VEHICLE_CMD_DO_SET_MODE,
+                1.0,
+                6.0,
+            )
+            self.send_command(
+                idx,
+                VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM,
+                1.0,
+                0.0,
+            )
+        self.get_logger().info("Sent OFFBOARD + ARM commands to all UAVs.")
+
+    def all_armed_offboard(self) -> bool:
+        for idx in self.ids:
+            st = self.status[idx]
+            if st is None:
+                return False
+            if st.arming_state != VehicleStatus.ARMING_STATE_ARMED:
+                return False
+            if st.nav_state != VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+                return False
+        return True
+
+    def set_phase(self, phase: str) -> None:
+        self.phase = phase
+        self.phase_start = time.monotonic()
+        self.get_logger().warn(f"MISSION PHASE -> {phase}")
+
+    def elapsed(self) -> float:
+        return time.monotonic() - self.phase_start
+
+    def ground_targets(self) -> Dict[int, Position]:
+        return {idx: self.origin[idx] for idx in self.ids}
+
+    def airborne_targets(self) -> Dict[int, Position]:
+        return {
+            idx: (
+                self.origin[idx][0],
+                self.origin[idx][1],
+                self.takeoff_z[idx],
+            )
+            for idx in self.ids
+        }
+
+    def takeoff_targets(self, ratio: float) -> Dict[int, Position]:
+        result = {}
+        for idx in self.ids:
+            start = self.origin[idx]
+            end = (start[0], start[1], self.takeoff_z[idx])
+            result[idx] = lerp(start, end, ratio)
+        return result
+
+    def square_targets(self, elapsed: float) -> Dict[int, Position]:
+        targets = self.airborne_targets()
+        p0 = targets[1]
+        s = self.square_side
+        points = (
+            p0,
+            (p0[0] + s, p0[1], p0[2]),
+            (p0[0] + s, p0[1] + s, p0[2]),
+            (p0[0], p0[1] + s, p0[2]),
+            p0,
+        )
+        leg = int(elapsed // self.leg_sec)
+        if leg >= 4:
+            targets[1] = p0
+            return targets
+        t = elapsed - leg * self.leg_sec
+        targets[1] = lerp(points[leg], points[leg + 1], t / self.leg_sec)
+        return targets
+
+    def publish_targets(self, targets: Dict[int, Position]) -> None:
+        for idx in self.ids:
+            self.publish_mode(idx)
+            self.publish_setpoint(idx, targets[idx])
+
+    def log_status(self) -> None:
+        now = time.monotonic()
+        if now - self.last_status_log < 2.0:
+            return
+        self.last_status_log = now
+        parts = []
+        for idx in self.ids:
+            st = self.status[idx]
+            pos = self.positions[idx]
+            if st is None:
+                parts.append(f"UAV{idx}: status=NONE")
+                continue
+            pos_text = "NONE" if pos is None else (
+                f"({pos[0]:.2f},{pos[1]:.2f},{pos[2]:.2f})"
+            )
+            parts.append(
+                f"UAV{idx}: arm={st.arming_state}, nav={st.nav_state}, "
+                f"preflight={getattr(st, 'pre_flight_checks_pass', 'NA')}, "
+                f"pos={pos_text}"
+            )
+        self.get_logger().info(" | ".join(parts))
+
+    def timer_cb(self) -> None:
+        self.log_status()
+
+        if self.phase == "WAIT_ODOMETRY":
+            if any(self.positions[idx] is None for idx in self.ids):
+                return
+            self.origin = {
+                idx: self.positions[idx]  # type: ignore[assignment]
+                for idx in self.ids
+            }
+            self.get_logger().info(f"Captured local origins: {self.origin}")
+            self.set_phase("PRESTREAM")
+
+        if self.phase == "PRESTREAM":
+            self.publish_targets(self.ground_targets())
+            if self.elapsed() >= self.prestream_sec:
+                self.set_phase("ARM_OFFBOARD")
+            return
+
+        if self.phase == "ARM_OFFBOARD":
+            self.publish_targets(self.ground_targets())
+            self.request_offboard_and_arm()
+            if self.all_armed_offboard():
+                self.set_phase("TAKEOFF")
+            elif self.elapsed() >= self.arm_timeout_sec:
+                self.get_logger().warn(
+                    "Arm/offboard timeout; continuing retries during TAKEOFF."
+                )
+                self.set_phase("TAKEOFF")
+            return
+
+        if self.phase == "TAKEOFF":
+            self.request_offboard_and_arm()
+            ratio = self.elapsed() / self.takeoff_sec
+            self.publish_targets(self.takeoff_targets(ratio))
+            if ratio >= 1.0:
+                self.set_phase("SETTLE")
+            return
+
+        if self.phase == "SETTLE":
+            self.request_offboard_and_arm()
+            self.publish_targets(self.airborne_targets())
+            if self.elapsed() >= self.settle_sec:
+                self.set_phase("SQUARE")
+            return
+
+        if self.phase == "SQUARE":
+            self.request_offboard_and_arm()
+            self.publish_targets(self.square_targets(self.elapsed()))
+            if self.elapsed() >= 4.0 * self.leg_sec:
+                self.set_phase("FINAL_HOLD")
+            return
+
+        if self.phase == "FINAL_HOLD":
+            self.publish_targets(self.airborne_targets())
+
+
+def main(args=None) -> None:
+    rclpy.init(args=args)
+    node = Uav1FastlioMission()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

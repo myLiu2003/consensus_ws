@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>student_center_sim</name>
+  <version>0.1.0</version>
+  <description>ROS 2 and Gazebo Sim resources for the Student Center multi-UAV environment.</description>
+
+  <maintainer email="maintainer@example.com">Student Center Team</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

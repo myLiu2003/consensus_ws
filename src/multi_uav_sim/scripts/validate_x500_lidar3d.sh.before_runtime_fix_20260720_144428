@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -Eeo pipefail
+
+PKG="${HOME}/consensus_ws/src/multi_uav_sim"
+
+# shellcheck disable=SC1091
+source "${PKG}/scripts/setup_sim_env.sh"
+
+echo
+echo "[1/4] Checking required model directories"
+test -f "${PKG}/models/lidar_3d_v1/model.sdf"
+test -f "${PKG}/models/x500_lidar_3d/model.sdf"
+echo "OK"
+
+echo
+echo "[2/4] Locating the base X500 resource"
+X500_FOUND=""
+IFS=':' read -r -a RESOURCE_DIRS <<< "${GZ_SIM_RESOURCE_PATH}"
+for root in "${RESOURCE_DIRS[@]}"; do
+    if [[ -f "${root}/x500/model.sdf" ]]; then
+        X500_FOUND="${root}/x500/model.sdf"
+        break
+    fi
+done
+
+if [[ -z "${X500_FOUND}" ]]; then
+    echo "ERROR: model://x500 could not be located in GZ_SIM_RESOURCE_PATH"
+    exit 2
+fi
+echo "X500_MODEL=${X500_FOUND}"
+
+echo
+echo "[3/4] Validating standalone LiDAR SDF"
+gz sdf -k "${PKG}/models/lidar_3d_v1/model.sdf"
+echo "OK"
+
+echo
+echo "[4/4] Validating composite X500 + LiDAR SDF"
+gz sdf -k "${PKG}/models/x500_lidar_3d/model.sdf"
+echo "OK"
+
+echo
+echo "VALIDATION PASSED"
+echo "PX4_SIM_MODEL=gz_x500_lidar_3d"

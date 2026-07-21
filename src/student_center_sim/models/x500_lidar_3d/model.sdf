@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="x500_lidar_3d">
+    <include merge="true">
+      <uri>model://x500</uri>
+    </include>
+
+    <link name="lidar_link">
+      <pose>0 0 0.26 0 0 0</pose>
+
+      <inertial>
+        <mass>0.15</mass>
+        <inertia>
+          <ixx>0.0003</ixx>
+          <iyy>0.0003</iyy>
+          <izz>0.0003</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+
+      <collision name="collision">
+        <geometry>
+          <cylinder>
+            <radius>0.055</radius>
+            <length>0.06</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <visual name="visual">
+        <geometry>
+          <cylinder>
+            <radius>0.055</radius>
+            <length>0.06</length>
+          </cylinder>
+        </geometry>
+
+        <material>
+          <ambient>0.08 0.08 0.08 1</ambient>
+          <diffuse>0.12 0.12 0.12 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+
+      <sensor name="lidar_3d" type="gpu_lidar">
+        <pose>0 0 0.035 0 0 0</pose>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <update_rate>10</update_rate>
+
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>720</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.141592653589793</min_angle>
+              <max_angle>3.141592653589793</max_angle>
+            </horizontal>
+
+            <vertical>
+              <samples>32</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.523598775598299</min_angle>
+              <max_angle>0.523598775598299</max_angle>
+            </vertical>
+          </scan>
+
+          <range>
+            <min>0.5</min>
+            <max>40.0</max>
+            <resolution>0.02</resolution>
+          </range>
+
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </lidar>
+      </sensor>
+    </link>
+
+    <joint name="lidar_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>lidar_link</child>
+    </joint>
+  </model>
+</sdf>

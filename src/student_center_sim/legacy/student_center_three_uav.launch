@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="est" default="ekf2"/>
+    <arg name="world" default="$(find px4)/Tools/sitl_gazebo/worlds/Student_Center.world"/>
+    <arg name="gui" default="true"/>
+    <arg name="debug" default="false"/>
+    <arg name="verbose" default="false"/>
+    <arg name="paused" default="false"/>
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="gui" value="$(arg gui)"/><arg name="world_name" value="$(arg world)"/>
+        <arg name="debug" value="$(arg debug)"/><arg name="verbose" value="$(arg verbose)"/>
+        <arg name="paused" value="$(arg paused)"/>
+    </include>
+
+    <!-- Student Center: south-side triangular formation, clear of obstacles. -->
+    <group ns="iris_0">
+        <arg name="ID" value="0"/><arg name="ID_in_group" value="0"/>
+        <arg name="fcu_url" default="udp://:24540@localhost:34580"/>
+        <include file="$(find px4)/launch/single_vehicle_spawn_xtd.launch">
+            <arg name="x" value="-2.0"/><arg name="y" value="-12.5"/><arg name="z" value="0.4"/>
+            <arg name="R" value="0"/><arg name="P" value="0"/><arg name="Y" value="0"/>
+            <arg name="vehicle" value="iris"/><arg name="sdf" value="iris_3d_gpu_lidar"/>
+            <arg name="mavlink_udp_port" value="18570"/><arg name="mavlink_tcp_port" value="4560"/>
+            <arg name="ID" value="$(arg ID)"/><arg name="ID_in_group" value="$(arg ID_in_group)"/>
+        </include>
+        <include file="$(find mavros)/launch/px4.launch">
+            <arg name="fcu_url" value="$(arg fcu_url)"/><arg name="gcs_url" value=""/>
+            <arg name="tgt_system" value="$(eval 1 + arg('ID'))"/><arg name="tgt_component" value="1"/>
+            <arg name="config_yaml" value="$(find px4)/launch/px4/px4_config_iris_0.yaml"/>
+        </include>
+        <node pkg="tf" type="static_transform_publisher" name="iris_0_base_link_to_laser" args="0 0 0.08 0 0 0 iris_0/base_link iris_0/laser_3d 100"/>
+        <node pkg="tf" type="static_transform_publisher" name="iris_0_base_link_to_base_link_frd" args="0 0 0 3.1415927 0 0 iris_0/base_link iris_0/base_link_frd 100"/>
+    </group>
+
+    <group ns="iris_1">
+        <arg name="ID" value="1"/><arg name="ID_in_group" value="1"/>
+        <arg name="fcu_url" default="udp://:24541@localhost:34581"/>
+        <include file="$(find px4)/launch/single_vehicle_spawn_xtd.launch">
+            <arg name="x" value="2.0"/><arg name="y" value="-12.5"/><arg name="z" value="0.4"/>
+            <arg name="R" value="0"/><arg name="P" value="0"/><arg name="Y" value="0"/>
+            <arg name="vehicle" value="iris"/><arg name="sdf" value="iris_3d_gpu_lidar"/>
+            <arg name="mavlink_udp_port" value="18571"/><arg name="mavlink_tcp_port" value="4561"/>
+            <arg name="ID" value="$(arg ID)"/><arg name="ID_in_group" value="$(arg ID_in_group)"/>
+        </include>
+        <include file="$(find mavros)/launch/px4.launch">
+            <arg name="fcu_url" value="$(arg fcu_url)"/><arg name="gcs_url" value=""/>
+            <arg name="tgt_system" value="$(eval 1 + arg('ID'))"/><arg name="tgt_component" value="1"/>
+            <arg name="config_yaml" value="$(find px4)/launch/px4/px4_config_iris_1.yaml"/>
+        </include>
+        <node pkg="tf" type="static_transform_publisher" name="iris_1_base_link_to_laser" args="0 0 0.08 0 0 0 iris_1/base_link iris_1/laser_3d 100"/>
+        <node pkg="tf" type="static_transform_publisher" name="iris_1_base_link_to_base_link_frd" args="0 0 0 3.1415927 0 0 iris_1/base_link iris_1/base_link_frd 100"/>
+    </group>
+
+    <group ns="iris_2">
+        <arg name="ID" value="2"/><arg name="ID_in_group" value="2"/>
+        <arg name="fcu_url" default="udp://:24542@localhost:34582"/>
+        <include file="$(find px4)/launch/single_vehicle_spawn_xtd.launch">
+            <arg name="x" value="0.0"/><arg name="y" value="-10.8"/><arg name="z" value="0.4"/>
+            <arg name="R" value="0"/><arg name="P" value="0"/><arg name="Y" value="0"/>
+            <arg name="vehicle" value="iris"/><arg name="sdf" value="iris_3d_gpu_lidar"/>
+            <arg name="mavlink_udp_port" value="18572"/><arg name="mavlink_tcp_port" value="4562"/>
+            <arg name="ID" value="$(arg ID)"/><arg name="ID_in_group" value="$(arg ID_in_group)"/>
+        </include>
+        <include file="$(find mavros)/launch/px4.launch">
+            <arg name="fcu_url" value="$(arg fcu_url)"/><arg name="gcs_url" value=""/>
+            <arg name="tgt_system" value="$(eval 1 + arg('ID'))"/><arg name="tgt_component" value="1"/>
+            <arg name="config_yaml" value="$(find px4)/launch/px4/px4_config_iris_2.yaml"/>
+        </include>
+        <node pkg="tf" type="static_transform_publisher" name="iris_2_base_link_to_laser" args="0 0 0.08 0 0 0 iris_2/base_link iris_2/laser_3d 100"/>
+        <node pkg="tf" type="static_transform_publisher" name="iris_2_base_link_to_base_link_frd" args="0 0 0 3.1415927 0 0 iris_2/base_link iris_2/base_link_frd 100"/>
+    </group>
+</launch>

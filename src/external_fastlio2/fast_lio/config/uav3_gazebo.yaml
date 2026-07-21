@@ -1,0 +1,57 @@
+/**:
+  ros__parameters:
+    feature_extract_enable: false
+
+    # 性能关键参数：由脚本顶部档位自动写入
+    point_filter_num: 4
+    max_iteration: 2
+    filter_size_surf: 0.50
+    filter_size_map: 0.70
+
+    cube_side_length: 200.0
+    runtime_pos_log_enable: false
+    map_file_path: ""
+
+    common:
+      lid_topic: "/uav3/sensors/lidar"
+      imu_topic: "/uav3/sensors/imu"
+      time_sync_en: false
+      time_offset_lidar_to_imu: 0.0
+
+    preprocess:
+      # 必须与Gazebo实际传感器配置一致，不通过修改这里降低真实点云负载
+      lidar_type: 5
+      scan_line: 32
+      blind: 0.30
+      timestamp_unit: 3
+      scan_rate: 10
+
+    mapping:
+      acc_cov: 0.10
+      gyr_cov: 0.10
+      b_acc_cov: 0.0001
+      b_gyr_cov: 0.0001
+      fov_degree: 360.0
+      det_range: 100.0
+      extrinsic_est_en: false
+      extrinsic_T: [0.0, 0.0, 0.070]
+      extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
+
+    frames:
+      world_frame: "odom_uav3"
+      body_frame: "base_link_uav3"
+
+    publish:
+      path_en: false
+      effect_map_en: false
+      map_en: false
+      # 后端关键帧与GICP需要cloud_registered，所有档位保持true
+      scan_publish_en: true
+      dense_publish_en: false
+      scan_bodyframe_pub_en: false
+
+    pcd_save:
+      pcd_save_en: false
+      interval: -1

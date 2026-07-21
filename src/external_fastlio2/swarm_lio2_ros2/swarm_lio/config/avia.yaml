@@ -1,0 +1,82 @@
+# Swarm-LIO2 configuration for Livox MID-360 (ROS2)
+# Usage: ros2 launch swarm_lio swarm_lio2.launch.py config_file:=mid360.yaml
+
+/**:
+  ros__parameters:
+    # ---- common ----
+    "common/lid_topic": "livox/lidar"
+    "common/imu_topic": "livox/imu"
+    "common/time_offset_lidar_imu": 0.0
+    "common/drone_id": 1
+
+    # ---- preprocess ----
+    "preprocess/lidar_type": 1            # Livox CustomMsg path (AVIA/MID360)
+    "preprocess/feature_extract_en": false
+    "preprocess/scan_line": 6
+    "preprocess/blind": 0.2
+    "filter_size_corner": 0.5
+
+    # ---- mapping (FAST-LIO core) ----
+    "mapping/filter_size_surf": 0.2
+    "mapping/filter_size_map": 0.3
+    "mapping/cube_side_length": 2000.0
+    "mapping/det_range": 100.0
+    "mapping/imu_en": true
+    "mapping/acc_cov": 0.1
+    "mapping/gyr_cov": 0.1
+    "mapping/grav_cov": 0.001
+    "mapping/b_acc_cov": 0.0001
+    "mapping/b_gyr_cov": 0.0001
+    "mapping/point_filter_num": 2
+    "mapping/max_iteration": 4
+    "mapping/LI_extrinsic_T": [ -0.019391, -0.000278,  0.080926 ]
+    "mapping/LI_extrinsic_R": [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ]
+
+    # ---- multi-uav swarm ----
+    "multiuav/actual_uav_num": 3
+    "multiuav/cluster_extraction_in_predict_region": true
+    "multiuav/inten_threshold": 240
+    "multiuav/min_high_inten_cluster_size": 4
+    "multiuav/min_cluster_size": 7
+    "multiuav/predict_region_radius": 0.5
+    "multiuav/temp_predict_region_radius": 0.5
+    "multiuav/traj_matching_start_thresh": 100.0
+    "multiuav/ave_match_error_thresh": 0.2
+    "multiuav/pos_num_in_traj": 300
+    "multiuav/reset_tracker_thresh": 5.0
+    "multiuav/valid_cluster_size_thresh": 0.5
+    "multiuav/valid_cluster_dist_thresh": 0.2
+    "multiuav/mutual_observe_noise": 0.001
+    "multiuav/frame_num_in_sliding_window": 3
+    "multiuav/degeneration_thresh": 10
+
+    # ---- calibration ----
+    "calibration/cut_frame_en": false
+    "calibration/cut_frame_num": 1
+    "calibration/accumulate_frame_en": true
+    "calibration/original_frequency": 10        # Hz
+    "calibration/gravity_align_enable": true
+    "calibration/gravity_align_time": 10.0       # seconds
+    "calibration/PX4_R_I": [ 0.0, 0.0, 0.0 ]    # degree
+    "calibration/PX4_p_I": [ 0.0, 0.0, 0.0 ]    # meter
+    "calibration/level_horizon": [ 0.0, 0.0, 0.0 ]  # degree
+
+    # ---- imu_propagate ----
+    "imu_propagate/enable": true
+    "imu_propagate/topic": "lidar_slam/imu_propagate"
+    "imu_propagate/filter_acc_en": false
+
+    # ---- publish ----
+    "publish/path_en": true
+    "publish/scan_publish_en": true
+    "publish/dense_publish_en": true
+    "publish/scan_bodyframe_pub_en": false
+    "publish/mavros_pose_en": false              # publish /mavros/vision_pose/pose for PX4 MAVROS compat
+    "runtime_pos_log_enable": false
+    "log_dir": "/tmp/swarm_lio"
+    "sub_gt_pose_topic": ""
+
+    # ---- pcd_save ----
+    "pcd_save/pcd_save_en": false
+    "pcd_save/pcd_resolution": 0.1
+    "pcd_save/interval": -1

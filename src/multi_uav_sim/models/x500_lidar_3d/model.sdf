@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="x500_lidar_3d">
+    <!-- Keep the stock PX4 X500 untouched and merge it into this model. -->
+    <include merge="true">
+      <uri>x500</uri>
+    </include>
+
+    <!-- Merge the independent mapping sensor payload into the X500 model. -->
+    <include merge="true">
+      <uri>model://lidar_3d_v1</uri>
+      <pose>0 0 0.26 0 0 0</pose>
+    </include>
+
+    <joint name="lidar_3d_fixed_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>link</child>
+      <pose relative_to="base_link">0 0 0.26 0 0 0</pose>
+    </joint>
+  </model>
+</sdf>
