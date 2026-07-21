@@ -2,7 +2,7 @@
 
 cd ~/consensus_ws
 
-注意：每次开始改代码前先执行：
+每次开始改代码前先执行：
 
 git pull --rebase
 
