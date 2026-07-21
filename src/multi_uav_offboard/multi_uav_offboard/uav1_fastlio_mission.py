@@ -91,7 +91,7 @@ class Uav1FastlioMission(Node):
             # 订阅飞控状态（解锁状态、导航模式等）
             self.create_subscription(
                 VehicleStatus,
-                f"{prefix}/out/vehicle_status",
+                f"{prefix}/out/vehicle_status_v1",
                 lambda msg, i=idx: self.status_cb(i, msg),
                 self.sub_qos,
             )
@@ -105,13 +105,14 @@ class Uav1FastlioMission(Node):
         self.last_status_log = 0.0
 
         # ---- 任务参数 ----
-        self.takeoff_z = {1: -3.0, 2: -4.0, 3: -5.0}  # 各 UAV 目标高度（NED，负值=向上）
+        self.takeoff_z = {1: -8.0, 2: -4.0, 3: -5.0}  # 各 UAV 目标高度（NED，负值=向上）
         self.prestream_sec = 3.0      # 预发送 setpoint 时间（飞控要求切换 offboard 前持续收到 setpoint）
         self.arm_timeout_sec = 15.0   # 解锁超时（超时后强制进入起飞阶段）
         self.takeoff_sec = 10.0       # 起飞爬升时间
         self.settle_sec = 5.0         # 到达目标高度后稳定悬停时间
-        self.leg_sec = 8.0            # 方形轨迹每条边持续时间（秒）
-        self.square_side = 4.0        # 方形轨迹边长（米）
+        self.leg_sec = 8.0            # 矩形轨迹每条边持续时间（秒）
+        self.rect_x = 12.0            # 矩形 X 方向边长（米）
+        self.rect_y = 20.0            # 矩形 Y 方向边长（米）
 
         self.timer = self.create_timer(0.05, self.timer_cb)
         self.get_logger().info(
@@ -255,19 +256,20 @@ class Uav1FastlioMission(Node):
             result[idx] = lerp(start, end, ratio)
         return result
 
-    # ---- 方形轨迹：UAV1 沿 4×4m 正方形飞行，UAV2/UAV3 保持悬停 ----
-    # 如需禁用方形轨迹，在下方 SETTLE 阶段将 set_phase("SQUARE") 改为 set_phase("FINAL_HOLD")
+    # ---- 矩形轨迹：UAV1 沿 12×20m 矩形飞行，UAV2/UAV3 保持悬停 ----
+    # 如需禁用矩形轨迹，在下方 SETTLE 阶段将 set_phase("SQUARE") 改为 set_phase("FINAL_HOLD")
     def square_targets(self, elapsed: float) -> Dict[int, Position]:
-        """UAV1 飞 4×4m 方形轨迹（4 段折线，每段 self.leg_sec 秒），UAV2/UAV3 保持各自悬停高度。"""
+        """UAV1 飞 12×20m 矩形轨迹（4 段折线，每段 self.leg_sec 秒），UAV2/UAV3 保持各自悬停高度。"""
         targets = self.airborne_targets()
         p0 = targets[1]
-        s = self.square_side
+        rx = self.rect_x
+        ry = self.rect_y
         points = (
-            p0,
-            (p0[0] + s, p0[1], p0[2]),
-            (p0[0] + s, p0[1] + s, p0[2]),
-            (p0[0], p0[1] + s, p0[2]),
-            p0,
+            p0,                                    # 起点
+            (p0[0] + rx, p0[1], p0[2]),            # 右：X+12
+            (p0[0] + rx, p0[1] + ry, p0[2]),       # 上：Y+20
+            (p0[0], p0[1] + ry, p0[2]),            # 左：X 回原点
+            p0,                                     # 下：Y 回原点
         )
         leg = int(elapsed // self.leg_sec)
         if leg >= 4:
@@ -357,7 +359,7 @@ class Uav1FastlioMission(Node):
             self.publish_targets(self.airborne_targets())
             if self.elapsed() >= self.settle_sec:
                 # [切换点] 如需仅悬停不飞方形轨迹，将 "SQUARE" 改为 "FINAL_HOLD"
-                self.set_phase("FINAL_HOLD")
+                self.set_phase("SQUARE")
             return
 
         # 阶段6: UAV1 执行 4×4m 方形轨迹演示（4 段 × leg_sec 秒/段）

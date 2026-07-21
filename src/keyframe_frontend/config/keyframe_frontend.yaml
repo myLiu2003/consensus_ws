@@ -1,0 +1,30 @@
+/**:
+  ros__parameters:
+    robot_id: 1
+
+    # 直接订阅现有 fast_lio 的输出，避免改动 fast_lio 主干代码。
+    odom_topic: "/uav1/fast_lio/odometry"
+    cloud_topic: "/uav1/fast_lio/cloud_registered"
+
+    keyframe_topic: "/uav1/consensus/keyframe"
+    submap_topic: "/uav1/consensus/submap_cloud"
+    keyframe_path_topic: "/uav1/consensus/keyframe_path"
+      keyframe_markers_topic: "/uav1/consensus/keyframe_markers"
+    sync_tolerance_sec: 0.12
+
+    # 关键帧触发参数（学长建议初值 + 防抖项）
+    d_thresh: 0.6
+    yaw_thresh_deg: 10.0
+    t_max: 1.2
+
+    t_min: 0.3
+    d_min: 0.15
+    yaw_min_deg: 3.0
+
+    # 轻量化局部子图参数
+    submap_window: 3
+    range_min: 0.8
+    range_max: 40.0
+    body_exclusion_radius: 0.8
+    voxel_size: 0.20
+    max_points: 25000
