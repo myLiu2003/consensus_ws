@@ -9,7 +9,7 @@
     keyframe_topic: "/uav1/consensus/keyframe"
     submap_topic: "/uav1/consensus/submap_cloud"
     keyframe_path_topic: "/uav1/consensus/keyframe_path"
-      keyframe_markers_topic: "/uav1/consensus/keyframe_markers"
+
     sync_tolerance_sec: 0.12
 
     # 关键帧触发参数（学长建议初值 + 防抖项）

@@ -111,8 +111,8 @@ class Uav1FastlioMission(Node):
         self.takeoff_sec = 10.0       # 起飞爬升时间
         self.settle_sec = 5.0         # 到达目标高度后稳定悬停时间
         self.leg_sec = 8.0            # 矩形轨迹每条边持续时间（秒）
-        self.rect_x = 12.0            # 矩形 X 方向边长（米）
-        self.rect_y = 20.0            # 矩形 Y 方向边长（米）
+        self.rect_x = 20.0            # 矩形 X 方向边长（米）
+        self.rect_y = 10.0            # 矩形 Y 方向边长（米）
 
         self.timer = self.create_timer(0.05, self.timer_cb)
         self.get_logger().info(

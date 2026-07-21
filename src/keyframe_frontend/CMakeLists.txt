@@ -16,7 +16,7 @@ find_package(pcl_conversions REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common filters)
 find_package(Eigen3 REQUIRED)
 find_package(map_consensus_msgs REQUIRED)
-  find_package(visualization_msgs REQUIRED)
+
 add_executable(keyframe_frontend_node
   src/keyframe_frontend_node.cpp
   src/keyframe_manager.cpp
@@ -43,7 +43,7 @@ ament_target_dependencies(keyframe_frontend_node
   pcl_ros
   pcl_conversions
   map_consensus_msgs
-    visualization_msgs
+)
 
 install(TARGETS keyframe_frontend_node
   DESTINATION lib/${PROJECT_NAME}
