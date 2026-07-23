@@ -14,6 +14,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
 #include "keyframe_frontend/keyframe_manager.hpp"
 #include "keyframe_frontend/submap_builder.hpp"
@@ -41,6 +42,9 @@ public:
       "submap_topic", "/uav1/consensus/submap_cloud");
     keyframe_path_topic_ = declare_parameter<std::string>(
       "keyframe_path_topic", "/uav1/consensus/keyframe_path");
+    keyframe_marker_topic_ = declare_parameter<std::string>(
+      "keyframe_marker_topic", "/uav1/consensus/keyframe_markers");
+    keyframe_marker_scale_m_ = declare_parameter<double>("keyframe_marker_scale", 0.35);
 
     const auto qos = rclcpp::SensorDataQoS();
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
@@ -53,13 +57,15 @@ public:
     keyframe_pub_ = create_publisher<map_consensus_msgs::msg::Keyframe>(keyframe_topic_, 10);
     submap_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(submap_topic_, 10);
     keyframe_path_pub_ = create_publisher<nav_msgs::msg::Path>(keyframe_path_topic_, 10);
+    keyframe_marker_pub_ = create_publisher<visualization_msgs::msg::Marker>(
+      keyframe_marker_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local());
 
     keyframe_path_.header.frame_id = "odom_uav" + std::to_string(robot_id_);
 
     RCLCPP_INFO(
       get_logger(),
-      "keyframe_frontend started, robot_id=%u, odom=%s, cloud=%s",
-      robot_id_, odom_topic_.c_str(), cloud_topic_.c_str());
+      "keyframe_frontend started, robot_id=%u, odom=%s, cloud=%s, markers=%s",
+      robot_id_, odom_topic_.c_str(), cloud_topic_.c_str(), keyframe_marker_topic_.c_str());
   }
 
 private:
@@ -148,6 +154,7 @@ private:
     publishKeyframe(keyframe);
     publishSubmap(keyframe);
     publishKeyframePath(*odom_msg);
+    publishKeyframeMarkers(keyframe);
 
     RCLCPP_INFO(
       get_logger(),
@@ -204,6 +211,37 @@ private:
     keyframe_path_.header.frame_id = odom_msg.header.frame_id;
     keyframe_path_.poses.push_back(pose_stamped);
     keyframe_path_pub_->publish(keyframe_path_);
+  }
+
+  void publishKeyframeMarkers(const KeyframeData & keyframe)
+  {
+    visualization_msgs::msg::Marker marker;
+    marker.header.stamp = keyframe.stamp;
+    marker.header.frame_id = keyframe_path_.header.frame_id;
+    marker.ns = "keyframes";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::SPHERE_LIST;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.pose.orientation.w = 1.0;
+    marker.scale.x = keyframe_marker_scale_m_;
+    marker.scale.y = keyframe_marker_scale_m_;
+    marker.scale.z = keyframe_marker_scale_m_;
+    marker.color.r = 1.0F;
+    marker.color.g = 0.15F;
+    marker.color.b = 0.15F;
+    marker.color.a = 1.0F;
+    marker.lifetime = rclcpp::Duration(0, 0);
+    marker.frame_locked = false;
+
+    for (const auto & stored_keyframe : keyframe_manager_.keyframes()) {
+      geometry_msgs::msg::Point point;
+      point.x = stored_keyframe.pose_odom_to_keyframe.translation().x();
+      point.y = stored_keyframe.pose_odom_to_keyframe.translation().y();
+      point.z = stored_keyframe.pose_odom_to_keyframe.translation().z();
+      marker.points.push_back(point);
+    }
+
+    keyframe_marker_pub_->publish(marker);
   }
 
   static Eigen::Isometry3d odomToIsometry(const nav_msgs::msg::Odometry & odom_msg)
@@ -264,6 +302,8 @@ private:
   std::string keyframe_topic_;
   std::string submap_topic_;
   std::string keyframe_path_topic_;
+  std::string keyframe_marker_topic_;
+  double keyframe_marker_scale_m_{0.35};
 
   KeyframeTriggerParams trigger_params_;
   SubmapParams submap_params_;
@@ -279,6 +319,7 @@ private:
   rclcpp::Publisher<map_consensus_msgs::msg::Keyframe>::SharedPtr keyframe_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr submap_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr keyframe_path_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr keyframe_marker_pub_;
 };
 
 }  // namespace keyframe_frontend

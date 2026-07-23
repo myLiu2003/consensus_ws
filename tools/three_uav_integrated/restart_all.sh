@@ -147,11 +147,15 @@ wait_topic /uav1/fast_lio/odometry 90
 wait_topic /uav2/fast_lio/odometry 90
 wait_topic /uav3/fast_lio/odometry 90
 
-# ---- 6. 启动 RViz 可视化 ----
+# ---- 6. 启动关键帧前端（三台无人机关键帧/子图/marker） ----
+start_component keyframe_frontend "ros2 launch keyframe_frontend keyframe_frontend.launch.py"
+sleep 3
+
+# ---- 7. 启动 RViz 可视化 ----
 start_component rviz "rviz2 -d '$RVIZ_CFG' --ros-args -p use_sim_time:=true"
 sleep 3
 
-# ---- 7. 启动任务节点 ----
+# ---- 8. 启动任务节点 ----
 # 默认：三机解锁+起飞 → UAV1 4×4m 方形轨迹演示 → 悬停
 # 如需仅解锁+悬停（跳过方形轨迹），编辑 uav1_fastlio_mission.py 中 SETTLE 阶段末尾：
 #   将 self.set_phase("SQUARE") 改为 self.set_phase("FINAL_HOLD")
