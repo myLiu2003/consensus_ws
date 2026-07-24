@@ -259,67 +259,26 @@ class Uav1FastlioMission(Node):
     # ---- 矩形轨迹：UAV1 沿 12×20m 矩形飞行，UAV2/UAV3 保持悬停 ----
     # 如需禁用矩形轨迹，在下方 SETTLE 阶段将 set_phase("SQUARE") 改为 set_phase("FINAL_HOLD")
     def square_targets(self, elapsed: float) -> Dict[int, Position]:
+        """UAV1 飞 12×20m 矩形轨迹（4 段折线，每段 self.leg_sec 秒），UAV2/UAV3 保持各自悬停高度。"""
         targets = self.airborne_targets()
-
-        # UAV1 square
-        p1 = targets[1]
-
-        rx = 4.0
-        ry = 4.0
-
+        p0 = targets[1]
+        rx = self.rect_x
+        ry = self.rect_y
         points = (
-            p1,
-            (p1[0] + rx, p1[1], p1[2]),
-            (p1[0] + rx, p1[1] + ry, p1[2]),
-            (p1[0], p1[1] + ry, p1[2]),
-            p1,
+            p0,                                    # 起点
+            (p0[0] + rx, p0[1], p0[2]),            # 右：X+12
+            (p0[0] + rx, p0[1] + ry, p0[2]),       # 上：Y+20
+            (p0[0], p0[1] + ry, p0[2]),            # 左：X 回原点
+            p0,                                     # 下：Y 回原点
         )
-
         leg = int(elapsed // self.leg_sec)
-
-        if leg < 4:
-            ratio = (elapsed - leg * self.leg_sec) / self.leg_sec
-            targets[1] = lerp(
-                points[leg],
-                points[leg + 1],
-                ratio
-            )
-
-        # UAV2 move X
-       # UAV2 向X方向移动10米
-        p2 = targets[2]
-
-        if elapsed < 10.0:
-            targets[2] = (
-                p2[0] + elapsed,
-                p2[1],
-                p2[2]
-            )
-        else:
-            targets[2] = (
-                p2[0] + 10.0,
-                p2[1],
-                p2[2]
-            )
-
-
-        # UAV3 向Y方向移动10米
-        p3 = targets[3]
-
-        if elapsed < 10.0:
-            targets[3] = (
-                p3[0],
-                p3[1] + elapsed,
-                p3[2]
-            )
-        else:
-            targets[3] = (
-                p3[0],
-                p3[1] + 10.0,
-                p3[2]
-            )
-
+        if leg >= 4:
+            targets[1] = p0
+            return targets
+        t = elapsed - leg * self.leg_sec
+        targets[1] = lerp(points[leg], points[leg + 1], t / self.leg_sec)
         return targets
+
     # ---- 发布与日志 ----
     def publish_targets(self, targets: Dict[int, Position]) -> None:
         """向三台 UAV 同时发布 offboard 控制模式和目标设定点。"""

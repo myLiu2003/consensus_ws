@@ -81,7 +81,6 @@ start_px4() {
         nohup env \
             PX4_GZ_STANDALONE=1 \
             PX4_SYS_AUTOSTART=4001 \
-            PX4_GZ_WORLD=student_center \
             PX4_SIM_MODEL="$MODEL" \
             PX4_GZ_MODEL_POSE="$pose" \
             "$PX4_BIN" -i "$instance" \
