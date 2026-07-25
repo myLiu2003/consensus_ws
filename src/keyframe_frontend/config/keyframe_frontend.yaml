@@ -8,7 +8,9 @@
 
     keyframe_topic: "/uav1/consensus/keyframe"
     submap_topic: "/uav1/consensus/submap_cloud"
+    submap_service_name: "/uav1/consensus/get_submap"
     keyframe_path_topic: "/uav1/consensus/keyframe_path"
+    publish_submap_on_request: true
 
     sync_tolerance_sec: 0.12
 
@@ -21,7 +23,7 @@
     d_min: 0.15
     yaw_min_deg: 3.0
 
-    # 轻量化局部子图参数
+    # 轻量化局部子图参数（按需构图）
     submap_window: 3
     range_min: 0.8
     range_max: 40.0

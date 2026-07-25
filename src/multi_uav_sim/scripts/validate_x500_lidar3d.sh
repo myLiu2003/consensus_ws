@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -Eeo pipefail
 
-PKG="${HOME}/consensus_ws/src/multi_uav_sim"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AUTO_WS="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROFILE_FILE="$AUTO_WS/config/workspace_profile.env"
+if [[ -f "$PROFILE_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$PROFILE_FILE"
+fi
+
+WS="${WS:-${MAP_CONSENSUS_WS:-$AUTO_WS}}"
+export MAP_CONSENSUS_WS="$WS"
+PKG="${PKG:-$WS/src/multi_uav_sim}"
 MODEL="${PKG}/models/x500_lidar_3d/model.sdf"
 LIDAR="${PKG}/models/lidar_3d_v1/model.sdf"
 STAMP="$(date +%Y%m%d_%H%M%S)"

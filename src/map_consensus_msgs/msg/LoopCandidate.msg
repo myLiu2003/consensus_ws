@@ -1,0 +1,11 @@
+std_msgs/Header header
+uint8 rank
+uint8 query_robot_id
+uint32 query_keyframe_id
+uint8 candidate_robot_id
+uint32 candidate_keyframe_id
+float32 scan_context_distance
+float32 yaw_initial_rad
+geometry_msgs/Pose query_local_pose
+geometry_msgs/Pose candidate_local_pose
+uint32 graph_version

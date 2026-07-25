@@ -5,7 +5,8 @@
 # 职责：
 #   在已编译完成的工作空间基础上，依次启动完整的三无人机仿真+感知+控制栈：
 #     QGroundControl → XRCE-DDS Agent → 三台 PX4 SITL → 
-#     传感器桥接(ros_gz_bridge) → FAST-LIO(激光里程计) → RViz → 任务节点
+#     传感器桥接(ros_gz_bridge) → FAST-LIO(激光里程计) →
+#     多机地图共识链(静态TF + 关键帧前端 + Scan Context) → RViz → 任务节点
 #
 # 与 install_and_restart.sh 的关系：
 #   - install_and_restart.sh = 完整流程：配置生成 + colcon编译 + 调用本脚本
@@ -21,17 +22,30 @@
 # =============================================================================
 set -eo pipefail
 
+BUNDLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_WS="${WS:-${MAP_CONSENSUS_WS:-$HOME/consensus_lcgo_ws}}"
+PROFILE_FILE="$BUNDLE_DIR/workspace_profile.env"
+if [[ ! -f "$PROFILE_FILE" && -f "$DEFAULT_WS/config/workspace_profile.env" ]]; then
+  PROFILE_FILE="$DEFAULT_WS/config/workspace_profile.env"
+fi
+[[ -f "$PROFILE_FILE" ]] || { echo "[ERROR] Missing workspace_profile.env near $BUNDLE_DIR or in $DEFAULT_WS/config"; exit 1; }
+# shellcheck disable=SC1090
+source "$PROFILE_FILE"
+
 # ---- 路径与工作目录定义 ----
-WS="${WS:-$HOME/consensus_ws}"                   # ROS2 工作空间
+DEFAULT_WS="${MAP_CONSENSUS_WS:-$DEFAULT_WS}"  # 修改 profile 中的 MAP_CONSENSUS_WS 即可切换工作区
+WS="${WS:-$DEFAULT_WS}"                   # ROS2 工作空间
+export MAP_CONSENSUS_WS="$WS"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"        # PX4 源码目录
 TOOLS_DIR="$WS/tools/three_uav_integrated"        # 辅助脚本目录
 SESSION="${SESSION:-map_consensus_integrated}"    # tmux 会话名
 STAMP="$(date +%Y%m%d_%H%M%S)"                   # 本次运行时间戳
 RUN_DIR="$WS/logs/integrated_stack/$STAMP"        # 本次日志输出目录
 mkdir -p "$RUN_DIR"
+ln -sfn "$RUN_DIR" "$WS/logs/integrated_stack/latest"
 
 # ---- 第一步：停止所有旧进程 ----
-"$TOOLS_DIR/stop_all.sh"
+"$BUNDLE_DIR/stop_all.sh"
 
 # ---- 加载 ROS2 环境 ----
 source /opt/ros/humble/setup.bash
@@ -41,9 +55,11 @@ source "$WS/install/setup.bash"
 PX4_BIN="$PX4_DIR/build/px4_sitl_default/bin/px4"       # PX4 SITL 可执行文件
 BRIDGE_CFG="$WS/config/three_uav_sensor_bridges.yaml"    # Gz↔ROS2 传感器桥接配置
 RVIZ_CFG="$WS/config/uav1_fastlio.rviz"                  # RViz 可视化配置
+  LOOP_CFG="$(ros2 pkg prefix loop_consensus 2>/dev/null || true)"
 for required in "$PX4_BIN" "$BRIDGE_CFG" "$RVIZ_CFG"; do
   [[ -e "$required" ]] || { echo "[ERROR] Missing: $required"; exit 1; }
 done
+  [[ -n "$LOOP_CFG" ]] || { echo "[ERROR] loop_consensus package not found"; exit 1; }
 
 # ---- 查找 XRCE-DDS Agent（PX4 与 ROS2 通信桥梁） ----
 AGENT_BIN="$(command -v MicroXRCEAgent 2>/dev/null || command -v micro-xrce-dds-agent 2>/dev/null || true)"
@@ -90,6 +106,17 @@ wait_topic() {
   while true; do
     ros2 topic list 2>/dev/null | grep -Fxq "$topic" && { echo "[OK] $topic"; return 0; }
     (( $(date +%s) - started < timeout_sec )) || { echo "[ERROR] Timeout: $topic"; return 1; }
+    sleep 1
+  done
+}
+
+wait_service() {
+  local service_name="$1"
+  local timeout_sec="$2"
+  local started="$(date +%s)"
+  while true; do
+    ros2 service list 2>/dev/null | grep -Fxq "$service_name" && { echo "[OK] $service_name"; return 0; }
+    (( $(date +%s) - started < timeout_sec )) || { echo "[ERROR] Timeout: $service_name"; return 1; }
     sleep 1
   done
 }
@@ -147,9 +174,25 @@ wait_topic /uav1/fast_lio/odometry 90
 wait_topic /uav2/fast_lio/odometry 90
 wait_topic /uav3/fast_lio/odometry 90
 
-# ---- 6. 启动关键帧前端（三台无人机关键帧/子图/marker） ----
-start_component keyframe_frontend "ros2 launch keyframe_frontend keyframe_frontend.launch.py"
+# ---- 6. 启动多机地图共识链 ----
+start_component map_consensus "ros2 launch loop_consensus multi_uav_consensus.launch.py"
 sleep 3
+
+for topic in \
+  /uav1/consensus/keyframe \
+  /uav2/consensus/keyframe \
+  /uav3/consensus/keyframe \
+  /map_consensus/loop_candidates \
+  /map_consensus/loop_candidate_markers; do
+  wait_topic "$topic" 90
+done
+
+for service_name in \
+  /uav1/consensus/get_submap \
+  /uav2/consensus/get_submap \
+  /uav3/consensus/get_submap; do
+  wait_service "$service_name" 90
+done
 
 # ---- 7. 启动 RViz 可视化 ----
 start_component rviz "rviz2 -d '$RVIZ_CFG' --ros-args -p use_sim_time:=true"
@@ -168,8 +211,9 @@ tmux kill-window -t "$SESSION:bootstrap" 2>/dev/null || true
 echo "============================================================"
 echo "[OK] Integrated stack started"
 echo "[INFO] tmux attach -t $SESSION    # 进入 tmux 会话查看各组件运行状态"
-echo "[INFO] $TOOLS_DIR/status.sh      # 检查各 topic 是否就绪"
+echo "[INFO] $BUNDLE_DIR/status.sh      # 检查各 topic / service / node 是否就绪"
+echo "[INFO] $BUNDLE_DIR/monitor.sh     # 实时监控共识链并写入精简日志"
 echo "[INFO] Logs: $RUN_DIR            # 各组件日志存放目录"
 echo "============================================================"
 sleep 10
-"$TOOLS_DIR/status.sh"
+"$BUNDLE_DIR/status.sh"

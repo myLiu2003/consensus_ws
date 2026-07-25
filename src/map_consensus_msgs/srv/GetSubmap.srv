@@ -1,0 +1,8 @@
+uint32 keyframe_id
+---
+bool success
+string message
+uint32 center_keyframe_id
+uint32[] included_keyframe_ids
+geometry_msgs/Pose center_local_pose
+sensor_msgs/PointCloud2 submap

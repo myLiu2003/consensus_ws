@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # Source this file before starting PX4/Gazebo with custom map-consensus assets.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AUTO_WS="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROFILE_FILE="$AUTO_WS/config/workspace_profile.env"
+if [[ -f "$PROFILE_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$PROFILE_FILE"
+fi
+
+WS="${WS:-${MAP_CONSENSUS_WS:-$AUTO_WS}}"
+export MAP_CONSENSUS_WS="$WS"
+PX4_ROOT="${PX4_DIR:-$HOME/PX4-Autopilot}"
+
 append_resource_path() {
     local candidate="$1"
     [[ -d "${candidate}" ]] || return 0
@@ -17,12 +29,12 @@ append_resource_path() {
     esac
 }
 
-append_resource_path "${HOME}/consensus_ws/src/multi_uav_sim/models"
-append_resource_path "${HOME}/consensus_ws/src/multi_uav_sim/worlds"
+append_resource_path "${WS}/src/multi_uav_sim/models"
+append_resource_path "${WS}/src/multi_uav_sim/worlds"
 
-append_resource_path "${HOME}/PX4-Autopilot/Tools/simulation/gz/models"
-append_resource_path "${HOME}/PX4-Autopilot/Tools/simulation/gz/worlds"
-append_resource_path "${HOME}/PX4-Autopilot/Tools/simulation/gz"
+append_resource_path "${PX4_ROOT}/Tools/simulation/gz/models"
+append_resource_path "${PX4_ROOT}/Tools/simulation/gz/worlds"
+append_resource_path "${PX4_ROOT}/Tools/simulation/gz"
 
 append_resource_path "${HOME}/.simulation-gazebo/models"
 append_resource_path "${HOME}/.simulation-gazebo/worlds"

@@ -1,13 +1,17 @@
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <Eigen/Geometry>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <map_consensus_msgs/msg/keyframe.hpp>
+#include <map_consensus_msgs/srv/get_submap.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <pcl/common/transforms.h>
@@ -40,10 +44,13 @@ public:
       "keyframe_topic", "/uav1/consensus/keyframe");
     submap_topic_ = declare_parameter<std::string>(
       "submap_topic", "/uav1/consensus/submap_cloud");
+    submap_service_name_ = declare_parameter<std::string>(
+      "submap_service_name", "/uav1/consensus/get_submap");
     keyframe_path_topic_ = declare_parameter<std::string>(
       "keyframe_path_topic", "/uav1/consensus/keyframe_path");
     keyframe_marker_topic_ = declare_parameter<std::string>(
       "keyframe_marker_topic", "/uav1/consensus/keyframe_markers");
+    publish_submap_on_request_ = declare_parameter<bool>("publish_submap_on_request", true);
     keyframe_marker_scale_m_ = declare_parameter<double>("keyframe_marker_scale", 0.35);
 
     const auto qos = rclcpp::SensorDataQoS();
@@ -59,13 +66,24 @@ public:
     keyframe_path_pub_ = create_publisher<nav_msgs::msg::Path>(keyframe_path_topic_, 10);
     keyframe_marker_pub_ = create_publisher<visualization_msgs::msg::Marker>(
       keyframe_marker_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local());
+    submap_service_ = create_service<map_consensus_msgs::srv::GetSubmap>(
+      submap_service_name_,
+      std::bind(
+        &KeyframeFrontendNode::handleGetSubmapRequest,
+        this,
+        std::placeholders::_1,
+        std::placeholders::_2));
 
     keyframe_path_.header.frame_id = "odom_uav" + std::to_string(robot_id_);
 
     RCLCPP_INFO(
       get_logger(),
-      "keyframe_frontend started, robot_id=%u, odom=%s, cloud=%s, markers=%s",
-      robot_id_, odom_topic_.c_str(), cloud_topic_.c_str(), keyframe_marker_topic_.c_str());
+      "keyframe_frontend started, robot_id=%u, odom=%s, cloud=%s, markers=%s, get_submap=%s",
+      robot_id_,
+      odom_topic_.c_str(),
+      cloud_topic_.c_str(),
+      keyframe_marker_topic_.c_str(),
+      submap_service_name_.c_str());
   }
 
 private:
@@ -152,7 +170,6 @@ private:
     keyframe_manager_.addKeyframe(keyframe);
 
     publishKeyframe(keyframe);
-    publishSubmap(keyframe);
     publishKeyframePath(*odom_msg);
     publishKeyframeMarkers(keyframe);
 
@@ -189,17 +206,36 @@ private:
     keyframe_pub_->publish(msg);
   }
 
-  void publishSubmap(const KeyframeData & keyframe)
+  void handleGetSubmapRequest(
+    const std::shared_ptr<map_consensus_msgs::srv::GetSubmap::Request> request,
+    std::shared_ptr<map_consensus_msgs::srv::GetSubmap::Response> response)
   {
-    const auto & keyframes = keyframe_manager_.keyframes();
-    const std::size_t center_index = keyframes.empty() ? 0U : keyframes.size() - 1U;
-    auto submap_cloud = submap_builder_.buildSubmap(keyframes, center_index);
+    const auto center_index = keyframe_manager_.findKeyframeIndex(request->keyframe_id);
+    if (!center_index.has_value()) {
+      response->success = false;
+      response->message =
+        "keyframe_id=" + std::to_string(request->keyframe_id) + " is not available";
+      RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
+      return;
+    }
 
-    sensor_msgs::msg::PointCloud2 submap_msg;
-    pcl::toROSMsg(*submap_cloud, submap_msg);
-    submap_msg.header.stamp = keyframe.stamp;
-    submap_msg.header.frame_id = keyframe.frame_id;
-    submap_pub_->publish(submap_msg);
+    const auto submap_result = buildSubmapResponse(center_index.value());
+    response->success = true;
+    response->message = submap_result.message;
+    response->center_keyframe_id = submap_result.center_keyframe_id;
+    response->included_keyframe_ids = submap_result.included_keyframe_ids;
+    response->center_local_pose = submap_result.center_local_pose;
+    response->submap = submap_result.submap;
+
+    if (publish_submap_on_request_) {
+      submap_pub_->publish(submap_result.submap);
+    }
+
+    RCLCPP_INFO(
+      get_logger(),
+      "Built on-demand submap for keyframe %u using %zu frames.",
+      response->center_keyframe_id,
+      response->included_keyframe_ids.size());
   }
 
   void publishKeyframePath(const nav_msgs::msg::Odometry & odom_msg)
@@ -242,6 +278,53 @@ private:
     }
 
     keyframe_marker_pub_->publish(marker);
+  }
+
+  struct SubmapResponseData
+  {
+    std::string message;
+    uint32_t center_keyframe_id{0U};
+    std::vector<uint32_t> included_keyframe_ids;
+    geometry_msgs::msg::Pose center_local_pose;
+    sensor_msgs::msg::PointCloud2 submap;
+  };
+
+  SubmapResponseData buildSubmapResponse(std::size_t center_index) const
+  {
+    const auto & keyframes = keyframe_manager_.keyframes();
+    const auto & center_keyframe = keyframes.at(center_index);
+    const auto submap_cloud = submap_builder_.buildSubmap(keyframes, center_index);
+
+    const int begin_index =
+      std::max(0, static_cast<int>(center_index) - submap_params_.window_size);
+    const int end_index =
+      std::min(
+        static_cast<int>(keyframes.size()) - 1,
+        static_cast<int>(center_index) + submap_params_.window_size);
+
+    SubmapResponseData result;
+    result.center_keyframe_id = center_keyframe.keyframe_id;
+    result.message =
+      "built submap around keyframe_id=" + std::to_string(center_keyframe.keyframe_id);
+    result.center_local_pose.position.x = center_keyframe.pose_odom_to_keyframe.translation().x();
+    result.center_local_pose.position.y = center_keyframe.pose_odom_to_keyframe.translation().y();
+    result.center_local_pose.position.z = center_keyframe.pose_odom_to_keyframe.translation().z();
+
+    const Eigen::Quaterniond q(center_keyframe.pose_odom_to_keyframe.rotation());
+    result.center_local_pose.orientation.x = q.x();
+    result.center_local_pose.orientation.y = q.y();
+    result.center_local_pose.orientation.z = q.z();
+    result.center_local_pose.orientation.w = q.w();
+
+    for (int idx = begin_index; idx <= end_index; ++idx) {
+      result.included_keyframe_ids.push_back(
+        keyframes[static_cast<std::size_t>(idx)].keyframe_id);
+    }
+
+    pcl::toROSMsg(*submap_cloud, result.submap);
+    result.submap.header.stamp = center_keyframe.stamp;
+    result.submap.header.frame_id = center_keyframe.frame_id;
+    return result;
   }
 
   static Eigen::Isometry3d odomToIsometry(const nav_msgs::msg::Odometry & odom_msg)
@@ -301,8 +384,10 @@ private:
   std::string cloud_topic_;
   std::string keyframe_topic_;
   std::string submap_topic_;
+    std::string submap_service_name_;
   std::string keyframe_path_topic_;
   std::string keyframe_marker_topic_;
+    bool publish_submap_on_request_{true};
   double keyframe_marker_scale_m_{0.35};
 
   KeyframeTriggerParams trigger_params_;
@@ -320,6 +405,7 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr submap_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr keyframe_path_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr keyframe_marker_pub_;
+    rclcpp::Service<map_consensus_msgs::srv::GetSubmap>::SharedPtr submap_service_;
 };
 
 }  // namespace keyframe_frontend

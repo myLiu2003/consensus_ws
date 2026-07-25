@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <optional>
 #include <string>
 
 #include <nav_msgs/msg/odometry.hpp>
@@ -31,6 +32,8 @@ public:
   const KeyframeData & latest() const;
 
   const std::deque<KeyframeData> & keyframes() const;
+
+  std::optional<std::size_t> findKeyframeIndex(uint32_t keyframe_id) const;
 
 private:
   static Eigen::Isometry3d odomToIsometry(const nav_msgs::msg::Odometry & odom_msg);

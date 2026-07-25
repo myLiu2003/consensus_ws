@@ -2,16 +2,26 @@
 set -Eeuo pipefail
 
 MODEL="${1:-gz_x500}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AUTO_WS="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROFILE_FILE="$AUTO_WS/config/workspace_profile.env"
+if [[ -f "$PROFILE_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$PROFILE_FILE"
+fi
 
-PX4_ROOT="${HOME}/PX4-Autopilot"
+WS="${WS:-${MAP_CONSENSUS_WS:-$AUTO_WS}}"
+export MAP_CONSENSUS_WS="$WS"
+
+PX4_ROOT="${PX4_DIR:-$HOME/PX4-Autopilot}"
 PX4_BIN="${PX4_ROOT}/build/px4_sitl_default/bin/px4"
 LOG_DIR="${HOME}/logs/student_center"
 PID_FILE="${LOG_DIR}/px4_pids.txt"
 
 set +u
 source /opt/ros/humble/setup.bash
-if [[ -f "${HOME}/consensus_ws/install/setup.bash" ]]; then
-    source "${HOME}/consensus_ws/install/setup.bash"
+if [[ -f "${WS}/install/setup.bash" ]]; then
+    source "${WS}/install/setup.bash"
 fi
 set -u
 

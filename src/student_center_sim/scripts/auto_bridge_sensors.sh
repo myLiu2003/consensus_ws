@@ -3,14 +3,24 @@ set -Eeuo pipefail
 
 LOG_DIR="${HOME}/logs/student_center"
 PID_FILE="${LOG_DIR}/bridge_pids.txt"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AUTO_WS="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROFILE_FILE="$AUTO_WS/config/workspace_profile.env"
+if [[ -f "$PROFILE_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$PROFILE_FILE"
+fi
+
+WS="${WS:-${MAP_CONSENSUS_WS:-$AUTO_WS}}"
+export MAP_CONSENSUS_WS="$WS"
 
 mkdir -p "$LOG_DIR"
 : > "$PID_FILE"
 
 set +u
 source /opt/ros/humble/setup.bash
-if [[ -f "${HOME}/consensus_ws/install/setup.bash" ]]; then
-    source "${HOME}/consensus_ws/install/setup.bash"
+if [[ -f "${WS}/install/setup.bash" ]]; then
+    source "${WS}/install/setup.bash"
 fi
 set -u
 

@@ -13,6 +13,8 @@ find_package(sensor_msgs REQUIRED)
 
 set(msg_files
   "msg/Keyframe.msg"
+  "msg/LoopCandidate.msg"
+  "srv/GetSubmap.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

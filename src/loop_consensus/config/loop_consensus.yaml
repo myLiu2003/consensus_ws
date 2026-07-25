@@ -1,0 +1,9 @@
+loop_consensus_node:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    round_period_sec: 1.0
+    top_k: 5
+    coarse_candidate_count: 10
+    intra_robot_exclusion: 30
+    marker_z_offset_m: 0.6

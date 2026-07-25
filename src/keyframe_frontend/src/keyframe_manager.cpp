@@ -108,6 +108,17 @@ const std::deque<KeyframeData> & KeyframeManager::keyframes() const
   return keyframes_;
 }
 
+std::optional<std::size_t> KeyframeManager::findKeyframeIndex(const uint32_t keyframe_id) const
+{
+  for (std::size_t idx = 0; idx < keyframes_.size(); ++idx) {
+    if (keyframes_[idx].keyframe_id == keyframe_id) {
+      return idx;
+    }
+  }
+
+  return std::nullopt;
+}
+
 Eigen::Isometry3d KeyframeManager::odomToIsometry(const nav_msgs::msg::Odometry & odom_msg)
 {
   Eigen::Quaterniond q(
