@@ -71,9 +71,10 @@ node_state() {
 emit_snapshot() {
   local snapshot
   snapshot=$(
-    printf '[SNAPSHOT] nodes(tf=%s loop=%s kf1=%s kf2=%s kf3=%s) topics(kf1=%s kf2=%s kf3=%s cand=%s marker=%s) services(s1=%s s2=%s s3=%s)' \
+    printf '[SNAPSHOT] nodes(tf=%s loop=%s gicp=%s kf1=%s kf2=%s kf3=%s) topics(kf1=%s kf2=%s kf3=%s cand=%s marker=%s verify=%s accept=%s reject=%s) services(s1=%s s2=%s s3=%s)' \
       "$(node_state /multi_uav_tf_manager)" \
       "$(node_state /loop_consensus_node)" \
+      "$(node_state /gicp_verifier_node)" \
       "$(node_state /keyframe_frontend_uav1)" \
       "$(node_state /keyframe_frontend_uav2)" \
       "$(node_state /keyframe_frontend_uav3)" \
@@ -82,6 +83,9 @@ emit_snapshot() {
       "$(topic_state /uav3/consensus/keyframe)" \
       "$(topic_state /map_consensus/loop_candidates)" \
       "$(topic_state /map_consensus/loop_candidate_markers)" \
+      "$(topic_state /map_consensus/loop_verifications)" \
+      "$(topic_state /map_consensus/accepted_loops)" \
+      "$(topic_state /map_consensus/rejected_loops)" \
       "$(service_state /uav1/consensus/get_submap)" \
       "$(service_state /uav2/consensus/get_submap)" \
       "$(service_state /uav3/consensus/get_submap)"
@@ -106,7 +110,7 @@ emit_new_lines() {
     [[ -n "$line" ]] || continue
     case "$source_name" in
       MAP)
-        if [[ "$line" =~ loop_consensus\ started|SC\ stored:|Polling\ round|INTER\ query:|INTRA\ query:|No\ eligible\ candidate:|Cannot\ transform|Built\ on-demand\ submap ]]; then
+        if [[ "$line" =~ loop_consensus\ started|gicp_verifier\ started|SC\ stored:|Polling\ round|INTER\ query:|INTRA\ query:|No\ eligible\ candidate:|Cannot\ transform|Built\ on-demand\ submap|\[GICP_START\]|\[GICP_SUBMAP\]|\[GICP_RESULT\]|\[CHECK_RESULT\] ]]; then
           log_line "$(date '+[%F %T]') [MAP] $line"
         fi
         ;;

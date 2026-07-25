@@ -12,9 +12,11 @@ PATTERNS=(
   'uav1_fastlio_motion_test'
   'three_uav_waypoints'
   'three_uav_staggered_common_area'
+  'three_uav_overlap_mission'
   'multi_uav_tf_manager'
   'keyframe_frontend_node'
   'loop_consensus_node'
+  'gicp_verifier_node'
   'fastlio_mapping'
   'ros_gz_bridge.*parameter_bridge'
   'MicroXRCEAgent.*udp4.*8888'
@@ -44,7 +46,7 @@ ros2 daemon start >/dev/null 2>&1 || true
 
 echo "[INFO] Remaining related processes:"
 ps -eo pid=,args= | grep -E \
-    'px4_sitl_default/bin/px4|gz sim|gz-server|gz-gui|MicroXRCEAgent|micro-xrce-dds-agent|fastlio_mapping|multi_uav_tf_manager|keyframe_frontend_node|loop_consensus_node|parameter_bridge|rviz2|QGroundControl|uav1_fastlio_mission' \
+    'px4_sitl_default/bin/px4|gz sim|gz-server|gz-gui|MicroXRCEAgent|micro-xrce-dds-agent|fastlio_mapping|multi_uav_tf_manager|keyframe_frontend_node|loop_consensus_node|gicp_verifier_node|parameter_bridge|rviz2|QGroundControl|three_uav_overlap_mission' \
   | grep -v grep || true
 
 echo "[OK] Previous stack stopped."

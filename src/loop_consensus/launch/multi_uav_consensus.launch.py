@@ -18,11 +18,17 @@ def generate_launch_description():
     loop_share = get_package_share_directory("loop_consensus")
     keyframe_share = get_package_share_directory("keyframe_frontend")
     fastlio_share = get_package_share_directory("fast_lio")
+    backend_share = get_package_share_directory("pose_graph_backend")
 
     loop_config = os.path.join(
         loop_share,
         "config",
         "loop_consensus.yaml",
+    )
+    backend_config = os.path.join(
+        backend_share,
+        "config",
+        "gicp_verifier.yaml",
     )
 
     fastlio_launch = IncludeLaunchDescription(
@@ -63,6 +69,14 @@ def generate_launch_description():
         parameters=[loop_config],
     )
 
+    gicp_verifier_node = Node(
+        package="pose_graph_backend",
+        executable="gicp_verifier_node",
+        name="gicp_verifier_node",
+        output="screen",
+        parameters=[backend_config],
+    )
+
     return LaunchDescription(
         [
             DeclareLaunchArgument(
@@ -77,5 +91,6 @@ def generate_launch_description():
             tf_manager_node,
             keyframe_launch,
             loop_consensus_node,
+            gicp_verifier_node,
         ]
     )

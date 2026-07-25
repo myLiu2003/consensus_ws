@@ -23,8 +23,9 @@ def lerp(a: Position, b: Position, ratio: float) -> Position:
 
 
 class Uav1FastlioMission(Node):
-    """三机解锁+起飞+悬停；UAV1 执行 4×4m 方形轨迹演示，UAV2/UAV3 保持悬停。
-    
+    """
+    三机解锁+起飞+悬停；UAV1 执行方形轨迹演示，UAV2/UAV3 保持悬停.
+
     切换方法（仅悬停 / 含方形轨迹）：
       在 timer_cb() 的 SETTLE 阶段末尾，修改 self.set_phase(...) 的目标阶段即可：
         self.set_phase("SQUARE")      ← 含方形轨迹演示（默认）
@@ -121,7 +122,7 @@ class Uav1FastlioMission(Node):
 
     # ---- 回调函数 ----
     def odom_cb(self, idx: int, msg: VehicleOdometry) -> None:
-        """接收 PX4 里程计数据，更新 UAV 当前位置（NED 坐标系）。"""
+        """接收 PX4 里程计数据，更新 UAV 当前位置（NED 坐标系）."""
         if len(msg.position) < 3:
             return
         p = tuple(float(v) for v in msg.position[:3])
@@ -129,16 +130,16 @@ class Uav1FastlioMission(Node):
             self.positions[idx] = p
 
     def status_cb(self, idx: int, msg: VehicleStatus) -> None:
-        """接收 PX4 飞控状态（解锁状态、导航模式等）。"""
+        """接收 PX4 飞控状态（解锁状态、导航模式等）."""
         self.status[idx] = msg
 
     # ---- PX4 通信辅助 ----
     def timestamp_us(self) -> int:
-        """获取当前时间戳（微秒），PX4 uORB 消息必需字段。"""
+        """获取当前时间戳（微秒），PX4 uORB 消息必需字段."""
         return int(self.get_clock().now().nanoseconds // 1000)
 
     def publish_mode(self, idx: int) -> None:
-        """发送 OffboardControlMode：声明使用位置控制模式。"""
+        """发送 OffboardControlMode：声明使用位置控制模式."""
         msg = OffboardControlMode()
         msg.timestamp = self.timestamp_us()
         msg.position = True          # 启用位置控制
@@ -153,7 +154,7 @@ class Uav1FastlioMission(Node):
         self.offboard_pub[idx].publish(msg)
 
     def publish_setpoint(self, idx: int, p: Position) -> None:
-        """发送轨迹设定点（目标位置 NED），NaN 表示不控制速度/加速度/偏航速率。"""
+        """发送轨迹设定点（目标位置 NED），NaN 表示不控制速度/加速度/偏航速率."""
         msg = TrajectorySetpoint()
         msg.timestamp = self.timestamp_us()
         msg.position = [float(p[0]), float(p[1]), float(p[2])]
@@ -171,7 +172,7 @@ class Uav1FastlioMission(Node):
         param1: float = 0.0,
         param2: float = 0.0,
     ) -> None:
-        """发送 MAVLink 指令（如模式切换、解锁/上锁）。"""
+        """发送 MAVLink 指令（如模式切换、解锁/上锁）."""
         msg = VehicleCommand()
         msg.timestamp = self.timestamp_us()
         msg.param1 = float(param1)
@@ -186,7 +187,7 @@ class Uav1FastlioMission(Node):
 
     # ---- 解锁与模式切换 ----
     def request_offboard_and_arm(self) -> None:
-        """每秒发送一次 OFFBOARD 模式切换 + 解锁指令（两者需同时满足才能进入 offboard 飞行）。"""
+        """每秒发送一次 OFFBOARD 模式切换 + 解锁指令."""
         now = time.monotonic()
         if now - self.last_command_time < 1.0:
             return
@@ -209,7 +210,7 @@ class Uav1FastlioMission(Node):
         self.get_logger().info("Sent OFFBOARD + ARM commands to all UAVs.")
 
     def all_armed_offboard(self) -> bool:
-        """检查三台 UAV 是否均已解锁且处于 offboard 导航模式。"""
+        """检查三台 UAV 是否均已解锁且处于 offboard 导航模式."""
         for idx in self.ids:
             st = self.status[idx]
             if st is None:
@@ -222,22 +223,22 @@ class Uav1FastlioMission(Node):
 
     # ---- 阶段管理 ----
     def set_phase(self, phase: str) -> None:
-        """切换任务阶段并记录时间戳。"""
+        """切换任务阶段并记录时间戳."""
         self.phase = phase
         self.phase_start = time.monotonic()
         self.get_logger().warn(f"MISSION PHASE -> {phase}")
 
     def elapsed(self) -> float:
-        """当前阶段已持续时间（秒）。"""
+        """当前阶段已持续时间（秒）."""
         return time.monotonic() - self.phase_start
 
     # ---- 目标位置计算 ----
     def ground_targets(self) -> Dict[int, Position]:
-        """地面目标位置：各 UAV 记录的原点（原地不动）。"""
+        """地面目标位置：各 UAV 记录的原点（原地不动）."""
         return {idx: self.origin[idx] for idx in self.ids}
 
     def airborne_targets(self) -> Dict[int, Position]:
-        """空中悬停目标位置：xy 保持原点，z 为目标高度（NED 负值）。"""
+        """空中悬停目标位置：xy 保持原点，z 为目标高度（NED 负值）."""
         return {
             idx: (
                 self.origin[idx][0],
@@ -248,7 +249,7 @@ class Uav1FastlioMission(Node):
         }
 
     def takeoff_targets(self, ratio: float) -> Dict[int, Position]:
-        """起飞过程中的插值目标位置（从地面到目标高度线性过渡）。"""
+        """起飞过程中的插值目标位置（从地面到目标高度线性过渡）."""
         result = {}
         for idx in self.ids:
             start = self.origin[idx]
@@ -259,7 +260,7 @@ class Uav1FastlioMission(Node):
     # ---- 矩形轨迹：UAV1 沿 12×20m 矩形飞行，UAV2/UAV3 保持悬停 ----
     # 如需禁用矩形轨迹，在下方 SETTLE 阶段将 set_phase("SQUARE") 改为 set_phase("FINAL_HOLD")
     def square_targets(self, elapsed: float) -> Dict[int, Position]:
-        """UAV1 飞 12×20m 矩形轨迹（4 段折线，每段 self.leg_sec 秒），UAV2/UAV3 保持各自悬停高度。"""
+        """计算 UAV1 矩形轨迹和 UAV2/UAV3 悬停目标."""
         targets = self.airborne_targets()
         p0 = targets[1]
         rx = self.rect_x
@@ -281,13 +282,13 @@ class Uav1FastlioMission(Node):
 
     # ---- 发布与日志 ----
     def publish_targets(self, targets: Dict[int, Position]) -> None:
-        """向三台 UAV 同时发布 offboard 控制模式和目标设定点。"""
+        """向三台 UAV 同时发布 offboard 控制模式和目标设定点."""
         for idx in self.ids:
             self.publish_mode(idx)
             self.publish_setpoint(idx, targets[idx])
 
     def log_status(self) -> None:
-        """每 2 秒输出一次三台 UAV 的状态摘要（解锁状态、导航模式、当前位置）。"""
+        """每 2 秒输出一次三台 UAV 的状态摘要."""
         now = time.monotonic()
         if now - self.last_status_log < 2.0:
             return
@@ -376,7 +377,7 @@ class Uav1FastlioMission(Node):
 
 
 def main(args=None) -> None:
-    """任务入口：初始化 ROS2，创建节点，进入 spin 循环。"""
+    """任务入口：初始化 ROS2，创建节点，进入 spin 循环."""
     rclpy.init(args=args)
     node = Uav1FastlioMission()
     try:
@@ -390,3 +391,4 @@ def main(args=None) -> None:
 
 if __name__ == "__main__":
     main()
+

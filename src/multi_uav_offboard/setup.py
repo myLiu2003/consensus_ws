@@ -27,7 +27,9 @@ setup(
             'uav1_fastlio_mission = multi_uav_offboard.uav1_fastlio_mission:main',
             'uav1_fastlio_motion_test = multi_uav_offboard.uav1_fastlio_motion_test:main',
             'three_uav_waypoints = multi_uav_offboard.three_uav_waypoints:main',
-            'three_uav_staggered_common_area = multi_uav_offboard.three_uav_staggered_common_area:main',
+            'three_uav_staggered_common_area = '
+            'multi_uav_offboard.three_uav_staggered_common_area:main',
+            'three_uav_overlap_mission = multi_uav_offboard.three_uav_overlap_mission:main',
         ],
     },
 )

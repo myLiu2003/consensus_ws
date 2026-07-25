@@ -144,7 +144,7 @@ private:
 
     RCLCPP_INFO(
       get_logger(),
-      "SC stored: robot=%u id=%u seq=%u database=[%zu,%zu,%zu]",
+      "SC stored: robot=%u id=%u seq=%zu database=[%zu,%zu,%zu]",
       msg->robot_id,
       msg->keyframe_id,
       entry.robot_sequence,

@@ -199,10 +199,8 @@ start_component rviz "rviz2 -d '$RVIZ_CFG' --ros-args -p use_sim_time:=true"
 sleep 3
 
 # ---- 8. 启动任务节点 ----
-# 默认：三机解锁+起飞 → UAV1 4×4m 方形轨迹演示 → 悬停
-# 如需仅解锁+悬停（跳过方形轨迹），编辑 uav1_fastlio_mission.py 中 SETTLE 阶段末尾：
-#   将 self.set_phase("SQUARE") 改为 self.set_phase("FINAL_HOLD")
-start_component mission "ros2 run multi_uav_offboard uav1_fastlio_mission --ros-args -p use_sim_time:=true"
+# 三机同时起飞，随后错时进入同一条双圈闭合航线，提供跨机和单机回环重叠。
+start_component mission "ros2 run multi_uav_offboard three_uav_overlap_mission --ros-args -p use_sim_time:=true"
 
 # ---- 清理辅助窗口并输出摘要 ----
 # 删除初始的 bootstrap 占位窗口

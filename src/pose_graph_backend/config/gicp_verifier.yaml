@@ -1,0 +1,48 @@
+gicp_verifier_node:
+  ros__parameters:
+    use_sim_time: true
+
+    candidate_topic: /map_consensus/loop_candidates
+    verification_topic: /map_consensus/loop_verifications
+    accepted_topic: /map_consensus/accepted_loops
+    rejected_topic: /map_consensus/rejected_loops
+
+    uav1_submap_service: /uav1/consensus/get_submap
+    uav2_submap_service: /uav2/consensus/get_submap
+    uav3_submap_service: /uav3/consensus/get_submap
+
+    max_rank_to_verify: 1
+    sc_distance_threshold_inter: 0.65
+    sc_distance_threshold_intra: 0.35
+    request_timeout_sec: 2.0
+
+    coarse_voxel_size: 0.40
+    fine_voxel_size: 0.20
+    verifier_max_points: 12000
+
+    coarse_max_corr_dist: 2.0
+    fine_max_corr_dist: 1.0
+    coarse_max_iter: 30
+    fine_max_iter: 50
+    gicp_trans_eps: 0.001
+    gicp_fit_eps: 0.001
+    overlap_max_distance: 0.50
+
+    min_submap_points: 1000
+    min_correspondences: 150
+    min_overlap_ratio: 0.30
+    fitness_threshold_inter: 0.60
+    fitness_threshold_intra: 0.35
+    max_translation_norm: 15.0
+    forward_reverse_translation_thresh: 0.50
+    forward_reverse_yaw_thresh_deg: 5.0
+    prior_translation_error_thresh: 2.0
+    prior_yaw_error_deg_thresh: 15.0
+    neighbor_translation_thresh: 0.50
+    neighbor_yaw_thresh_deg: 5.0
+    neighbor_required_count: 2
+    neighbor_max_keyframe_gap: 6
+
+    publish_debug_clouds: true
+    publish_debug_markers: true
+    save_jsonl_log: true

@@ -29,6 +29,7 @@ echo "========== MAP CONSENSUS NODES =========="
 NODES=(
   /multi_uav_tf_manager
   /loop_consensus_node
+  /gicp_verifier_node
   /keyframe_frontend_uav1
   /keyframe_frontend_uav2
   /keyframe_frontend_uav3
@@ -75,6 +76,9 @@ echo "========== LOOP CONSENSUS TOPICS =========="
 LOOP_TOPICS=(
   /map_consensus/loop_candidates
   /map_consensus/loop_candidate_markers
+  /map_consensus/loop_verifications
+  /map_consensus/accepted_loops
+  /map_consensus/rejected_loops
 )
 for topic in "${LOOP_TOPICS[@]}"; do
   if grep -Fxq "$topic" <<< "$CURRENT_TOPICS"; then
