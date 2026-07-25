@@ -36,7 +36,7 @@ def start_gazebo(context):
         "on",
     }
 
-    server_only = "-s " if headless else ""
+    server_only = "-s --headless-rendering " if headless else ""
     gz_args = f"-r -v 4 {server_only}{world_path}"
 
     gz_launch = os.path.join(

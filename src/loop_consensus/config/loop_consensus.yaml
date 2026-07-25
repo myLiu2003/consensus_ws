@@ -1,0 +1,4 @@
+loop_consensus_node:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map

@@ -3,9 +3,9 @@ set -Eeuo pipefail
 
 LOG_DIR="${HOME}/logs/student_center"
 PID_FILE="${LOG_DIR}/bridge_pids.txt"
+MODEL_PREFIX="consensus_x500_lidar_3d"
 
 mkdir -p "$LOG_DIR"
-: > "$PID_FILE"
 
 set +u
 source /opt/ros/humble/setup.bash
@@ -14,116 +14,60 @@ if [[ -f "${HOME}/consensus_ws/install/setup.bash" ]]; then
 fi
 set -u
 
-find_topic_by_type() {
-    local instance="$1"
-    local required_type="$2"
+# 清理本用户上一次遗留的桥接，防止重复发布。
+pkill -u "${USER}" -f "ros_gz_bridge.*parameter_bridge" 2>/dev/null || true
+sleep 1
+: > "$PID_FILE"
 
-    local topic
-    while IFS= read -r topic; do
-        local info
-        info="$(gz topic -i -t "$topic" 2>&1 || true)"
+start_bridge() {
+    local argument="$1"
+    local gz_topic="$2"
+    local ros_topic="$3"
+    local log_file="$4"
 
-        if grep -q "$required_type" <<< "$info"; then
-            printf '%s\n' "$topic"
-            return 0
-        fi
-    done < <(
-        gz topic -l \
-            | grep -E "/model/[^/]*_${instance}(/|$)" \
-            | sort
-    )
-
-    return 1
-}
-
-start_clock_bridge() {
-    local clock_topic=""
-
-    if gz topic -l | grep -qx "/clock"; then
-        clock_topic="/clock"
-    else
-        clock_topic="$(
-            gz topic -l \
-                | grep -E "/world/student_center/clock$" \
-                | head -n 1 \
-                || true
-        )"
-    fi
-
-    if [[ -z "$clock_topic" ]]; then
-        echo "未找到 Gazebo clock 话题。"
-        return
-    fi
-
-    echo "启动 clock bridge：${clock_topic} -> /clock"
+    echo "启动桥接：${gz_topic} -> ${ros_topic}"
 
     nohup ros2 run ros_gz_bridge parameter_bridge \
-        "${clock_topic}@rosgraph_msgs/msg/Clock[gz.msgs.Clock" \
+        "$argument" \
         --ros-args \
-        -r "${clock_topic}:=/clock" \
-        > "${LOG_DIR}/bridge_clock.log" 2>&1 &
+        -r "${gz_topic}:=${ros_topic}" \
+        > "${LOG_DIR}/${log_file}" 2>&1 &
 
     echo "$!" >> "$PID_FILE"
 }
 
-start_sensor_bridge() {
-    local instance="$1"
+# Gazebo 时钟。
+start_bridge \
+    "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock" \
+    "/clock" \
+    "/clock" \
+    "bridge_clock.log"
 
-    local lidar_topic
-    local imu_topic
-
-    lidar_topic="$(
-        find_topic_by_type "$instance" "gz.msgs.PointCloudPacked" || true
-    )"
-
-    imu_topic="$(
-        find_topic_by_type "$instance" "gz.msgs.IMU" || true
-    )"
-
-    if [[ -z "$lidar_topic" ]]; then
-        echo "UAV${instance} 未找到 PointCloudPacked 话题。" >&2
-    else
-        echo "UAV${instance} LiDAR："
-        echo "  GZ : ${lidar_topic}"
-        echo "  ROS: /uav${instance}/sensors/lidar"
-
-        nohup ros2 run ros_gz_bridge parameter_bridge \
-            "${lidar_topic}@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked" \
-            --ros-args \
-            -r "${lidar_topic}:=/uav${instance}/sensors/lidar" \
-            > "${LOG_DIR}/bridge_uav${instance}_lidar.log" 2>&1 &
-
-        echo "$!" >> "$PID_FILE"
-    fi
-
-    if [[ -z "$imu_topic" ]]; then
-        echo "UAV${instance} 未找到 IMU 话题。" >&2
-    else
-        echo "UAV${instance} IMU："
-        echo "  GZ : ${imu_topic}"
-        echo "  ROS: /uav${instance}/sensors/imu"
-
-        nohup ros2 run ros_gz_bridge parameter_bridge \
-            "${imu_topic}@sensor_msgs/msg/Imu[gz.msgs.IMU" \
-            --ros-args \
-            -r "${imu_topic}:=/uav${instance}/sensors/imu" \
-            > "${LOG_DIR}/bridge_uav${instance}_imu.log" 2>&1 &
-
-        echo "$!" >> "$PID_FILE"
-    fi
-}
-
-start_clock_bridge
-
+# 三机 LiDAR 与 IMU。
 for instance in 1 2 3; do
-    start_sensor_bridge "$instance"
+    MODEL="${MODEL_PREFIX}_${instance}"
+
+    LIDAR_TOPIC="/world/student_center/model/${MODEL}/link/lidar_link/sensor/lidar_3d/scan/points"
+    IMU_TOPIC="/world/student_center/model/${MODEL}/link/base_link/sensor/imu_sensor/imu"
+
+    start_bridge \
+        "${LIDAR_TOPIC}@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked" \
+        "${LIDAR_TOPIC}" \
+        "/uav${instance}/sensors/lidar" \
+        "bridge_uav${instance}_lidar.log"
+
+    start_bridge \
+        "${IMU_TOPIC}@sensor_msgs/msg/Imu[gz.msgs.IMU" \
+        "${IMU_TOPIC}" \
+        "/uav${instance}/sensors/imu" \
+        "bridge_uav${instance}_imu.log"
 done
 
-sleep 2
+sleep 3
 
 echo
-echo "桥接进程已启动。"
-echo "ROS 2 传感器话题："
+echo "桥接进程已启动："
 ros2 topic list \
-    | grep -E "^/uav[123]/sensors/(lidar|imu)$|^/clock$" \
+    | grep -E "^/clock$|^/uav[123]/sensors/(lidar|imu)$" \
+    | sort \
     || true
